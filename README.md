@@ -1,7 +1,7 @@
 Overview
 --------
-A simple wrapper script to do a MySQL flush, lock, LVM snapshot, unlock, then backup.
-See http://www.lullabot.com/blog/article/mysql-backups-using-lvm-snapshots for a good explanation.
+A simple wrapper script to do a MySQL flush, lock, LVM snapshot, unlock, then backup of a MySQL database.
+Good alternative to say `mysqldump`. See http://www.lullabot.com/blog/article/mysql-backups-using-lvm-snapshots.
 
 Installation
 ------------

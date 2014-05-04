@@ -2,10 +2,11 @@
 <?php
 /**
  * This script flushes, then locks a mysql database, then snapshots its volume, then releases the lock.
- * It takes exactly 5 mandatory options - {@see usage()}
+ * Its all done in one script to help make the process atomic and durable.
  * After running this you generally want to do a backup off the snapshot then remove then snapshot.
- */ 
- 
+ * Takes exactly 5 mandatory options - {@see usage()}
+ */
+
 $cli_options = array(
   'host'    => array('short' => 'h'),
   'user'    => array('short' => 'u'),
@@ -18,8 +19,8 @@ $options = $options['valids'];
 if(
   !isset($options['host']) ||
   !isset($options['user']) ||
-  !isset($options['pwd'])  || 
-  !isset($options['volume']) || 
+  !isset($options['pwd'])  ||
+  !isset($options['volume']) ||
   !isset($options['snapshot_name'])) {
   _die(usage() . "\n");
 }
@@ -84,20 +85,20 @@ function simple_parse_args_saner(Array $argv, Array $valid_options, $fill = fals
   $valids = array();
   $invalids = array();
   $args = array();
-  
+
   // Pre fill valids with null.
   if($fill) {
     $valids = array_fill_keys(array_keys($valid_options), null);
   }
-    
+
   $options = _simple_parse_args_sane($argv);
-  
+
   $args = $options['non_option_args'];
   unset($options['non_option_args']);
-  
+
   foreach($options as $option_name => $option_arg) {
     $found_valid = false;
-    foreach($valid_options as $valid_option_name => $valid_option_spec) {  
+    foreach($valid_options as $valid_option_name => $valid_option_spec) {
       $short_names = array();
       $long_names = array();
       if(isset($valid_option_spec['short'])) {
@@ -126,10 +127,10 @@ function _simple_parse_args_sane(Array $argv) {
   $options = array();
   $non_option_args = array();
 
-  foreach($argv as $i => $opt) {  
-    // '-' is an allowed option as long as 
+  foreach($argv as $i => $opt) {
+    // '-' is an allowed option as long as
     if($opt == "-") {
-      $options['-'] = true;  
+      $options['-'] = true;
     }
     //special
     else if(preg_match("/^-=(.*)$/", $opt, $matches)) {
@@ -153,7 +154,7 @@ function _simple_parse_args_sane(Array $argv) {
       if($matches[2]) {
         $options[$long_opt]  = $matches[3];
       }
-    }  
+    }
     //special arg "--" means stop processing; rest is a non option arg regardless of form.
     else if($argv[$i] == "--") {
       if(isset($argv[$i+1])) {
@@ -161,11 +162,11 @@ function _simple_parse_args_sane(Array $argv) {
       }
       break;
     }
-    //the arg must be a non option arg. 
+    //the arg must be a non option arg.
     else {
       array_push($non_option_args, $argv[$i]);
     }
-  }  
+  }
   $options['non_option_args'] = $non_option_args;
   return  $options;
 }

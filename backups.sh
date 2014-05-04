@@ -21,6 +21,6 @@ flock -w 120 3 || fail  "Could not obtain lock."
 trap "post" EXIT
 
 [[ -f ./backups-pre ]] && ./backups-pre
-[[ ! -d ${BACKUPROOT} ]] && fail "Error: backup desination '${BACKUPROOT}' does not exist. Will not create.";
+[[ ! -d ${BACKUPROOT} ]] && fail "Error: backup destination '${BACKUPROOT}' does not exist. Will not create.";
 rsync -av --delete ${LVMMOUNT}/${MYSQLDATADIR}/ ${BACKUPROOT}/
 

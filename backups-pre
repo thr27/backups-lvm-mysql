@@ -1,8 +1,8 @@
 #!/bin/bash -e
 cd `dirname $0`
 . backups-config
+[[ -d ${BACKUPROOT} ]] || mkdir ${BACKUPROOT}
 SNAPSHOTPATH=`dirname ${VOLUME}`/${SNAPSHOTNAME}
-# This script is required to flush mysql tables, take a snapshot, then release flush lock:
+# This script is required to flush mysql tables, take a snapshot, then release flush lock.
 ./mysql-flush-snap -h=localhost -u=${MYUSER} -p=${MYPASS} -v=${VOLUME} -s=${SNAPSHOTNAME}
 mount ${SNAPSHOTPATH} ${LVMMOUNT}
-
