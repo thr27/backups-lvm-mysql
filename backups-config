@@ -1,0 +1,11 @@
+#!/bin/bash
+#SCRIPTROOT=/etc/backups-mysql/
+BACKUPROOT=/var/backups-lvm-mysql/
+VOLUME=/dev/vg1/root
+LVMMOUNT=/mnt/mysql-backups/
+MYSQLDATADIR=/var/lib/mysql/
+SNAPSHOTNAME=mysql-backups
+BACKUPLOCKFILE=/var/run/backups-lvm-mysql.pid
+MYUSER=root
+MYPASS=
+

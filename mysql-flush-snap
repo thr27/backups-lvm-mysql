@@ -1,0 +1,175 @@
+#!/usr/bin/php
+<?php
+/**
+ * This script flushes, then locks a mysql database, then snapshots its volume, then releases the lock.
+ * It takes exactly 5 mandatory options - {@see usage()}
+ * After running this you generally want to do a backup off the snapshot then remove then snapshot.
+ */ 
+ 
+$cli_options = array(
+  'host'    => array('short' => 'h'),
+  'user'    => array('short' => 'u'),
+  'pwd'     => array('short' => 'p'),
+  'volume'  => array('short' => 'v'),
+  'snapshot_name' => array('short' => 's'),
+);
+$options = simple_parse_args_saner($argv, $cli_options);
+$options = $options['valids'];
+if(
+  !isset($options['host']) ||
+  !isset($options['user']) ||
+  !isset($options['pwd'])  || 
+  !isset($options['volume']) || 
+  !isset($options['snapshot_name'])) {
+  _die(usage() . "\n");
+}
+
+extract($options);
+$volume_dir = dirname($volume);
+
+// if its there assume we created it.
+cleanup_lvm("$volume_dir/$snapshot_name");
+
+$mysqli = new mysqli($host, $user, $pwd);
+(!$mysqli->connect_errno) or _die("Failed to connect to MySQL: (" . $mysqli->connect_errno . ") " . $mysqli->connect_error . "\n");
+// flush, lock.
+$mysqli->query("FLUSH TABLES WITH READ LOCK") or _die("MySQL flush failed\n");
+// snapshot.
+system("lvcreate -l90%FREE --snapshot --name '$snapshot_name' $volume", $retval);
+(!$retval) or _die("Failed creating snapshot of '$volume'");
+// unlock.
+$mysqli->query("UNLOCK TABLES") or _die("MySQL unlock failed\n");
+exit(0);
+
+function _die($s) {
+  echo "Error: $s";
+  exit(1);
+}
+
+/**
+ * Remove the snapshot if exists. If it does exist thats ~an issue.
+ * Note the table lock will be released as session dies if script fails..
+ */
+function cleanup_lvm($snapshot_path) {
+  if(file_exists($snapshot_path)) {
+    echo "Warning: snapshot exists! Attempting to remove it.\n";
+    system("lvremove $snapshot_path --force", $retval);
+    if($retval) {
+      _die("Failed removing snapshot '$snapshot_path'\n");
+    }
+  }
+}
+
+/**
+ * Parse long and short arguments from the CLI.
+ * Sets all non found entries in $valid_options to null if not found, rather than not at all.
+ * This is done so you dont have to use isset() when using returned value directly.
+ * Any option found with no option arg is set to true.
+ * @param argv Array argv from teh CLI
+ * @param $valid_options is an array of arrays with form:
+ *  array(
+ *    'long' => <longname>
+ *    'short' => <shortname>
+ *   )
+ * @returns Array containing two arrays with form:
+ *   array(
+ *     'valid' => array(<cardinal> => <value found> , ...)
+ *     'invalid' => array(<name found> => <value found> , ...)
+ *     'args'
+ *    )
+ * @see simple_parse_args_sane().
+ * @param valid_options Array describing the set of valid cli options.
+ */
+function simple_parse_args_saner(Array $argv, Array $valid_options, $fill = false) {
+  $valids = array();
+  $invalids = array();
+  $args = array();
+  
+  // Pre fill valids with null.
+  if($fill) {
+    $valids = array_fill_keys(array_keys($valid_options), null);
+  }
+    
+  $options = _simple_parse_args_sane($argv);
+  
+  $args = $options['non_option_args'];
+  unset($options['non_option_args']);
+  
+  foreach($options as $option_name => $option_arg) {
+    $found_valid = false;
+    foreach($valid_options as $valid_option_name => $valid_option_spec) {  
+      $short_names = array();
+      $long_names = array();
+      if(isset($valid_option_spec['short'])) {
+        $short_names = preg_split("/ +/", $valid_option_spec['short']);
+      }
+      if(isset($valid_option_spec['long'])) {
+        $long_names = preg_split("/ +/", $valid_option_spec['long']);
+      }
+      if($option_name == $valid_option_name ||  in_array($option_name, $short_names) || in_array($option_name, $long_names)) {
+        $valids[$valid_option_name] = $option_arg;
+        $found_valid = true;
+        break;
+       }
+     }
+    if(! $found_valid) {
+      $invalids[$option_name] = $option_arg;
+    }
+   }
+  return array('valids' => $valids, 'invalids' => $invalids, 'args' => $args);
+}
+
+/**
+ * Actual parsing used by simple_parse_args_saner().
+ */
+function _simple_parse_args_sane(Array $argv) {
+  $options = array();
+  $non_option_args = array();
+
+  foreach($argv as $i => $opt) {  
+    // '-' is an allowed option as long as 
+    if($opt == "-") {
+      $options['-'] = true;  
+    }
+    //special
+    else if(preg_match("/^-=(.*)$/", $opt, $matches)) {
+      $options['-'] = $matches[1];
+    }
+    //parse short options
+    else if(preg_match("/^-([^-=][^=]*)(=?)(.*)$/", $opt, $matches)) {
+      $short_opts = $matches[1];
+      for($j = 0; $j < strlen($short_opts); $j++) {
+        $short_opt = substr($short_opts, $j, 1);
+        $options[$short_opt] = true;
+      }
+      if($matches[2]) {
+        $options[$short_opt] = $matches[3];
+      }
+    }
+    //parse long option
+    else if(preg_match("/^--([^=]+)(=?)(.*)$/", $argv[$i], $matches)) {
+      $long_opt = $matches[1];
+      $options[$long_opt] = true;
+      if($matches[2]) {
+        $options[$long_opt]  = $matches[3];
+      }
+    }  
+    //special arg "--" means stop processing; rest is a non option arg regardless of form.
+    else if($argv[$i] == "--") {
+      if(isset($argv[$i+1])) {
+        $non_option_args = array_merge($non_option_args,  array_slice($argv, $i+1));
+      }
+      break;
+    }
+    //the arg must be a non option arg. 
+    else {
+      array_push($non_option_args, $argv[$i]);
+    }
+  }  
+  $options['non_option_args'] = $non_option_args;
+  return  $options;
+}
+
+function usage() {
+  return "Usage: " . basename(__file__) . " --host=<host> --user=<user> --pwd=<pwd> --volume=<volume> --snapshot_name=<snapshot_name>";
+ }
